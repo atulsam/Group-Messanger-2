@@ -1,0 +1,7 @@
+#Internal package file, do not edit.
+#Fri Mar 08 03:01:11 EST 2019
+0.baseType=DIRECTORY
+0.base=/home/atul/AndroidStudioProjects/GroupMessenger2/app/build/intermediates/dex/debug/mergeDexDebug/out
+0.path=classes.dex
+0.set=DEX
+count=1
