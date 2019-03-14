@@ -25,9 +25,6 @@ import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
 import java.util.PriorityQueue;
 
 /**
@@ -134,7 +131,7 @@ public class GroupMessengerActivity extends Activity {
                     /*http://developer.android.com/reference/android/os/AsyncTask.html*/
                     double keyToStore =0.0;
                     String[] msgStrs = recStr.split("~~",4);
-                    Log.v("Server Rcvd msgStrs:",recStr);
+                    //Log.v("Server Rcvd msgStrs:",recStr);
 
                     if("requestKey".equalsIgnoreCase(msgStrs[0])){
                         Entry maxEntry = max();
@@ -143,16 +140,16 @@ public class GroupMessengerActivity extends Activity {
                         if(keyToStore > maxKey){
                             maxKey = keyToStore;
                         }
-                        Log.v("Server ShowQueue Rec1: ", showPQueue());
+                        //Log.v("Server ShowQueue Rec1: ", showPQueue());
                         Entry newEntry =new Entry(keyToStore,msgStrs[3],msgId,false);
                         priorityQueue.add(newEntry);
-                        Log.v("Server ShowQueue Rec2: ", showPQueue());
+                        //Log.v("Server ShowQueue Rec2: ", showPQueue());
 
                         try{
                             String resStr = "response~~"+keyToStore+"~~"+msgId;
                             DataOutputStream ackOut = new DataOutputStream(sc.getOutputStream());
                             ackOut.writeUTF(resStr);
-                            Log.v("Server Resp to Client:",resStr);
+                            //Log.v("Server Resp to Client:",resStr);
                             ackOut.close();
                         }catch (SocketTimeoutException e) {
                             Log.e(TAG, "ServerTask SocketTimeoutException1");
@@ -167,11 +164,11 @@ public class GroupMessengerActivity extends Activity {
                         keyToStore = Double.parseDouble(msgStrs[1]);
                         String msgId = msgStrs[2];
 
-                        Log.v("Server ShowQueue Upd1: ", showPQueue());
+                        //Log.v("Server ShowQueue Upd1: ", showPQueue());
                         Entry updateEntry =new Entry(keyToStore,msgStrs[3],msgId,true);
                         updateKey(updateEntry);
 
-                        Log.v("Server ShowQueue Upd2: ", showPQueue());
+                        //Log.v("Server ShowQueue Upd2: ", showPQueue());
 
                         try{
                         DataOutputStream ackOut = new DataOutputStream(sc.getOutputStream());
@@ -190,17 +187,17 @@ public class GroupMessengerActivity extends Activity {
                             String failedId = uniqueString(failedPort);
                             String u = firstEntry.getuId().split("-")[0];
                             if(firstEntry.isAck()){
-                                Log.v("Server ShowQueue 2If: ", showPQueue());
+                                //Log.v("Server ShowQueue 2If: ", showPQueue());
                                 publishProgress(firstEntry.getValue(),firstEntry.getKey()+"", firstEntry.getuId());
-                                Log.v("Server ShowQueue 2Rm1: ", showPQueue());
+                                //Log.v("Server ShowQueue 2Rm1: ", showPQueue());
                                 priorityQueue.poll();
-                                Log.v("Server ShowQueue 2Rm2: ", showPQueue());
+                                //Log.v("Server ShowQueue 2Rm2: ", showPQueue());
                             }else if(failedId.equalsIgnoreCase(u)){
-                                Log.v("Server ShowQueue Els1: ", showPQueue());
+                                //Log.v("Server ShowQueue Els1: ", showPQueue());
                                 priorityQueue.poll();
-                                Log.v("Server ShowQueue Els2: ", showPQueue());
+                                //Log.v("Server ShowQueue Els2: ", showPQueue());
                             }else{
-                                Log.v("Server ShowQueue Else: ", showPQueue());
+                                //Log.v("Server ShowQueue Else: ", showPQueue());
                                 break;
                             }
                         }
@@ -208,9 +205,12 @@ public class GroupMessengerActivity extends Activity {
                     input.close();
                     sc.close();
                 }
+            }catch (SocketException e) {
+                Log.e(TAG, "ServerTask SocketTimeoutException");
+            } catch (IOException e) {
+                Log.e(TAG, "ServerTask IOException");
             }catch (Exception e){
-                e.printStackTrace();
-                Log.e(TAG, "ServerTask Exception: "+e);
+                Log.e(TAG, "ServerTask Other Exception");
             }
             finally {
                 try {
@@ -236,7 +236,7 @@ public class GroupMessengerActivity extends Activity {
             remoteTextView.append(text);
             TextView localTextView = (TextView) findViewById(R.id.textView1);
             localTextView.append("\n");
-            Log.v("Publish Key and Msg:",text);
+            //Log.v("Publish Key and Msg:",text);
 
             ContentValues cv = new ContentValues();
             cv.put(KEY_FIELD, Integer.toString(key));
@@ -260,10 +260,10 @@ public class GroupMessengerActivity extends Activity {
                 double keyReq = (int)me.getKey()+1+0.1*myId;
                 double keyFinal = keyReq;
                 String msg = msgs[0];
-                Log.v("Client MyPort:",msgs[1]);
+                //Log.v("Client MyPort:",msgs[1]);
                 String msgId = uniqueString+"-"+(++uniqueId);
 
-                Log.v("Client FailedPort:",failedPort);
+                //Log.v("Client FailedPort:",failedPort);
                 REMOTE_PORT = removeElement(failedPort);
 
                 for( String remotePort : REMOTE_PORT){
@@ -274,13 +274,13 @@ public class GroupMessengerActivity extends Activity {
                         socket1.setSoTimeout(500);
 
                         String msgToSend = "requestKey~~"+keyReq+"~~"+msgId+"~~"+msg;
-                        Log.v("Client Request:",msgToSend+" Port:"+remotePort);
+                        //Log.v("Client Request:",msgToSend+" Port:"+remotePort);
                         DataOutputStream output = new DataOutputStream(socket1.getOutputStream());
                         output.writeUTF(msgToSend);
 
                         DataInputStream ackRec = new DataInputStream(socket1.getInputStream());
                         String ackStr = ackRec.readUTF();
-                        Log.v("Client Ack from Server:",ackStr+" Port:"+remotePort);
+                        //Log.v("Client Ack from Server:",ackStr+" Port:"+remotePort);
                         String[] msgStrs = ackStr.split("~~",3);
                         double recKey = Double.parseDouble(msgStrs[1]);
                         if(msgStrs[0].equals("response") && msgId.equalsIgnoreCase(msgStrs[2])){
@@ -303,8 +303,8 @@ public class GroupMessengerActivity extends Activity {
                     }
                 }
 
-                Log.v("Client FinalKey:",keyFinal+"~ Id:"+msgId);
-                Log.v("Client FailedPort:",failedPort);
+                //Log.v("Client FinalKey:",keyFinal+"~ Id:"+msgId);
+                //Log.v("Client FailedPort:",failedPort);
                 REMOTE_PORT = removeElement(failedPort);
 
                 for( String remotePort : REMOTE_PORT){
@@ -314,13 +314,13 @@ public class GroupMessengerActivity extends Activity {
                         socket.setSoTimeout(500);
 
                         String msgToSend = "ackKey~~"+keyFinal+"~~"+msgId+"~~"+msg;
-                        Log.v("Client Final key msg:",msgToSend+" Port:"+remotePort);
+                        //Log.v("Client Final key msg:",msgToSend+" Port:"+remotePort);
                         DataOutputStream output = new DataOutputStream(socket.getOutputStream());
                         output.writeUTF(msgToSend);
 
                         DataInputStream ackRec = new DataInputStream(socket.getInputStream());
                         String ackStr = ackRec.readUTF();
-                        Log.v("Client Final Ack Srvr:",ackStr);
+                        //Log.v("Client Final Ack Srvr:",ackStr);
                         String[] msgStrs = ackStr.split("~~",2);
                         if(msgStrs[0].equals("received")){
                             output.close();
@@ -409,11 +409,11 @@ public class GroupMessengerActivity extends Activity {
             if(e.getKey() > maxEntry.getKey()){
                 if(maxKey >e.getKey()){
                     maxEntry.setKey(maxKey);
-                    Log.v("Max Key1:",maxKey+"");
+                    //Log.v("Max Key1:",maxKey+"");
                 }else{
                     maxEntry.setKey(e.getKey());
                     maxKey = e.getKey();
-                    Log.v("Max Key2:",maxKey+"");
+                    //Log.v("Max Key2:",maxKey+"");
                 }
                 maxEntry.setValue(e.getValue());
                 maxEntry.setuId(e.getuId());
@@ -425,7 +425,7 @@ public class GroupMessengerActivity extends Activity {
     }
 
     public boolean updateKey(Entry entry){
-        Log.v("UpdateEntry:",entry.key+"#"+entry.value+"#"+entry.getuId()+"#"+entry.isAck());
+        //Log.v("UpdateEntry:",entry.key+"#"+entry.value+"#"+entry.getuId()+"#"+entry.isAck());
         if(entry.getKey() > maxKey){
             maxKey = entry.getKey();
         }
@@ -433,7 +433,7 @@ public class GroupMessengerActivity extends Activity {
             if(e.getuId().equalsIgnoreCase(entry.getuId())){
                 priorityQueue.remove(e);
                 priorityQueue.add(entry);
-                Log.v("UpdatedEntry:",e.key+"#"+e.value+"#"+e.getuId()+"#"+e.isAck());
+                //Log.v("UpdatedEntry:",e.key+"#"+e.value+"#"+e.getuId()+"#"+e.isAck());
                 return true;
             }
         }
