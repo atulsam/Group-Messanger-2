@@ -21,8 +21,13 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.PriorityQueue;
 
 /**
@@ -34,7 +39,7 @@ import java.util.PriorityQueue;
 public class GroupMessengerActivity extends Activity {
 
     static final String TAG = GroupMessengerActivity.class.getSimpleName();
-    static final String[] REMOTE_PORT = new String[]{"11108", "11112", "11116", "11120", "11124"};
+    static String[] REMOTE_PORT = new String[]{"11108", "11112", "11116", "11120", "11124"};
     static final int SERVER_PORT = 10000;
     private ContentResolver mContentResolver;
     private static final String KEY_FIELD = "key";
@@ -45,6 +50,7 @@ public class GroupMessengerActivity extends Activity {
     String uniqueString = "";
     int uniqueId = 0;
     double maxKey = 0.0;
+    String failedPort = "";
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -125,11 +131,9 @@ public class GroupMessengerActivity extends Activity {
                     /*https://stackoverflow.com/questions/28187038/tcp-client-server-program-datainputstream-dataoutputstream-issue*/
                     DataInputStream input = new DataInputStream(sc.getInputStream());
                     String recStr = input.readUTF();
-                    //System.out.println("Server1:"+recStr);
                     /*http://developer.android.com/reference/android/os/AsyncTask.html*/
                     double keyToStore =0.0;
                     String[] msgStrs = recStr.split("~~",4);
-                    //System.out.println("Server02:"+msgStrs[0]);
                     Log.v("Server Rcvd msgStrs:",recStr);
 
                     if("requestKey".equalsIgnoreCase(msgStrs[0])){
@@ -144,11 +148,20 @@ public class GroupMessengerActivity extends Activity {
                         priorityQueue.add(newEntry);
                         Log.v("Server ShowQueue Rec2: ", showPQueue());
 
-                        String resStr = "response~~"+keyToStore+"~~"+msgId;
-                        DataOutputStream ackOut = new DataOutputStream(sc.getOutputStream());
-                        ackOut.writeUTF(resStr);
-                        Log.v("Server Resp to Client:",resStr);
-                        ackOut.close();
+                        try{
+                            String resStr = "response~~"+keyToStore+"~~"+msgId;
+                            DataOutputStream ackOut = new DataOutputStream(sc.getOutputStream());
+                            ackOut.writeUTF(resStr);
+                            Log.v("Server Resp to Client:",resStr);
+                            ackOut.close();
+                        }catch (SocketTimeoutException e) {
+                            Log.e(TAG, "ServerTask SocketTimeoutException1");
+                        } catch (UnknownHostException  e) {
+                            Log.e(TAG, "ServerTask socket UnknownHostException1");
+                        }catch(IOException e){
+                            Log.e(TAG, "ServerTask socket IOException1");
+                        }
+
                     }else if("ackKey".equalsIgnoreCase(msgStrs[0])){
 
                         keyToStore = Double.parseDouble(msgStrs[1]);
@@ -160,18 +173,32 @@ public class GroupMessengerActivity extends Activity {
 
                         Log.v("Server ShowQueue Upd2: ", showPQueue());
 
+                        try{
                         DataOutputStream ackOut = new DataOutputStream(sc.getOutputStream());
                         ackOut.writeUTF("received~~"+msgId);
                         ackOut.close();
+                        }catch (SocketTimeoutException e) {
+                            Log.e(TAG, "ServerTask SocketTimeoutException2");
+                        } catch (UnknownHostException  e) {
+                            Log.e(TAG, "ServerTask socket UnknownHostException2");
+                        }catch(IOException e){
+                            Log.e(TAG, "ServerTask socket IOException2");
+                        }
 
                         while(priorityQueue.size() != 0){
                             Entry firstEntry = priorityQueue.peek();
-                            if(priorityQueue.peek().isAck()){
+                            String failedId = uniqueString(failedPort);
+                            String u = firstEntry.getuId().split("-")[0];
+                            if(firstEntry.isAck()){
                                 Log.v("Server ShowQueue 2If: ", showPQueue());
                                 publishProgress(firstEntry.getValue(),firstEntry.getKey()+"", firstEntry.getuId());
                                 Log.v("Server ShowQueue 2Rm1: ", showPQueue());
                                 priorityQueue.poll();
                                 Log.v("Server ShowQueue 2Rm2: ", showPQueue());
+                            }else if(failedId.equalsIgnoreCase(u)){
+                                Log.v("Server ShowQueue Els1: ", showPQueue());
+                                priorityQueue.poll();
+                                Log.v("Server ShowQueue Els2: ", showPQueue());
                             }else{
                                 Log.v("Server ShowQueue Else: ", showPQueue());
                                 break;
@@ -183,6 +210,7 @@ public class GroupMessengerActivity extends Activity {
                 }
             }catch (Exception e){
                 e.printStackTrace();
+                Log.e(TAG, "ServerTask Exception: "+e);
             }
             finally {
                 try {
@@ -233,58 +261,85 @@ public class GroupMessengerActivity extends Activity {
                 double keyFinal = keyReq;
                 String msg = msgs[0];
                 Log.v("Client MyPort:",msgs[1]);
-                String msgId = uniqueString+(++uniqueId);
-                for( String port : REMOTE_PORT){
-                    String remotePort = port;
-                    Socket socket1 = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
-                            Integer.parseInt(remotePort));
+                String msgId = uniqueString+"-"+(++uniqueId);
 
-                    String msgToSend = "requestKey~~"+keyReq+"~~"+msgId+"~~"+msg;
-                    Log.v("Client Request:",msgToSend+" Port:"+remotePort);
-                    DataOutputStream output = new DataOutputStream(socket1.getOutputStream());
-                    output.writeUTF(msgToSend);
+                Log.v("Client FailedPort:",failedPort);
+                REMOTE_PORT = removeElement(failedPort);
 
-                    DataInputStream ackRec = new DataInputStream(socket1.getInputStream());
-                    String ackStr = ackRec.readUTF();
-                    Log.v("Client Ack from Server:",ackStr+" Port:"+remotePort);
-                    String[] msgStrs = ackStr.split("~~",3);
-                    double recKey = Double.parseDouble(msgStrs[1]);
-                    if(msgStrs[0].equals("response") && msgId.equalsIgnoreCase(msgStrs[2])){
-                        if(recKey > keyFinal){
-                            keyFinal = recKey;
+                for( String remotePort : REMOTE_PORT){
+                    try{
+                        Socket socket1 = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
+                                Integer.parseInt(remotePort));
+
+                        socket1.setSoTimeout(500);
+
+                        String msgToSend = "requestKey~~"+keyReq+"~~"+msgId+"~~"+msg;
+                        Log.v("Client Request:",msgToSend+" Port:"+remotePort);
+                        DataOutputStream output = new DataOutputStream(socket1.getOutputStream());
+                        output.writeUTF(msgToSend);
+
+                        DataInputStream ackRec = new DataInputStream(socket1.getInputStream());
+                        String ackStr = ackRec.readUTF();
+                        Log.v("Client Ack from Server:",ackStr+" Port:"+remotePort);
+                        String[] msgStrs = ackStr.split("~~",3);
+                        double recKey = Double.parseDouble(msgStrs[1]);
+                        if(msgStrs[0].equals("response") && msgId.equalsIgnoreCase(msgStrs[2])){
+                            if(recKey > keyFinal){
+                                keyFinal = recKey;
+                            }
+                            output.close();
+                            ackRec.close();
+                            socket1.close();
                         }
-                        output.close();
-                        ackRec.close();
-                        socket1.close();
+                    }catch (SocketTimeoutException e) {
+                        failedPort = remotePort;
+                        Log.e(TAG, "ClientTask SocketTimeoutException1 @"+remotePort);
+                    } catch (UnknownHostException  e) {
+                        failedPort = remotePort;
+                        Log.e(TAG, "ClientTask socket UnknownHostException1 @"+remotePort);
+                    }catch(IOException e){
+                        failedPort = remotePort;
+                        Log.e(TAG, "ClientTask socket IOException1 @"+remotePort);
                     }
                 }
 
                 Log.v("Client FinalKey:",keyFinal+"~ Id:"+msgId);
+                Log.v("Client FailedPort:",failedPort);
+                REMOTE_PORT = removeElement(failedPort);
 
-                for( String port : REMOTE_PORT){
-                    String remotePort = port;
-                    Socket socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
-                            Integer.parseInt(remotePort));
+                for( String remotePort : REMOTE_PORT){
+                    try{
+                        Socket socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
+                                Integer.parseInt(remotePort));
+                        socket.setSoTimeout(500);
 
-                    String msgToSend = "ackKey~~"+keyFinal+"~~"+msgId+"~~"+msg;
-                    Log.v("Client Final key msg:",msgToSend+" Port:"+remotePort);
-                    DataOutputStream output = new DataOutputStream(socket.getOutputStream());
-                    output.writeUTF(msgToSend);
+                        String msgToSend = "ackKey~~"+keyFinal+"~~"+msgId+"~~"+msg;
+                        Log.v("Client Final key msg:",msgToSend+" Port:"+remotePort);
+                        DataOutputStream output = new DataOutputStream(socket.getOutputStream());
+                        output.writeUTF(msgToSend);
 
-                    DataInputStream ackRec = new DataInputStream(socket.getInputStream());
-                    String ackStr = ackRec.readUTF();
-                    Log.v("Client Final Ack Srvr:",ackStr);
-                    String[] msgStrs = ackStr.split("~~",2);
-                    if(msgStrs[0].equals("received")){
-                        output.close();
-                        ackRec.close();
-                        socket.close();
+                        DataInputStream ackRec = new DataInputStream(socket.getInputStream());
+                        String ackStr = ackRec.readUTF();
+                        Log.v("Client Final Ack Srvr:",ackStr);
+                        String[] msgStrs = ackStr.split("~~",2);
+                        if(msgStrs[0].equals("received")){
+                            output.close();
+                            ackRec.close();
+                            socket.close();
+                        }
+                    }catch (SocketTimeoutException e) {
+                        failedPort = remotePort;
+                        Log.e(TAG, "ClientTask SocketTimeoutException2 @"+remotePort);
+                    } catch (UnknownHostException  e) {
+                        failedPort = remotePort;
+                        Log.e(TAG, "ClientTask socket UnknownHostException2 @"+remotePort);
+                    }catch(IOException e){
+                        failedPort = remotePort;
+                        Log.e(TAG, "ClientTask socket IOException2 @"+remotePort);
                     }
                 }
-            } catch (UnknownHostException e) {
-                Log.e(TAG, "ClientTask UnknownHostException");
-            } catch (IOException e) {
-                Log.e(TAG, "ClientTask socket IOException");
+            }catch (Exception e) {
+                Log.e(TAG, "ClientTask Exception");
             }
             return null;
         }
@@ -393,5 +448,34 @@ public class GroupMessengerActivity extends Activity {
         return testKeys;
     }
 
+    public String[] removeElement(String ele){
+        if("".equalsIgnoreCase(ele)){
+            return REMOTE_PORT;
+        }else{
+            ArrayList<String> mylist = new ArrayList<String>();
+            for( String s: REMOTE_PORT){
+                if(!s.equalsIgnoreCase(ele)){
+                    mylist.add(s);
+                }
+            }
+            String [] strs = mylist.toArray(new String[mylist.size()]);
+            return strs;
+        }
+    }
+
+    public String uniqueString(String port){
+        if("".equalsIgnoreCase(port)){
+            return "";
+        }else{
+            switch(Integer.parseInt(port)){
+                case(11108): return "A";
+                case(11112): return "B";
+                case(11116): return "C";
+                case(11120): return "D";
+                case(11124): return "E";
+                default: return "";
+            }
+        }
+    }
 
 }
