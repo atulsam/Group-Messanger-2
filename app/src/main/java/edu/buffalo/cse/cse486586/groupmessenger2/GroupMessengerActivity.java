@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
@@ -29,8 +28,6 @@ import java.util.PriorityQueue;
 
 /**
  * GroupMessengerActivity is the main Activity for the assignment.
- * 
- * @author stevko
  *
  */
 public class GroupMessengerActivity extends Activity {
@@ -122,9 +119,10 @@ public class GroupMessengerActivity extends Activity {
         @Override
         protected Void doInBackground(ServerSocket... sockets) {
             ServerSocket serverSocket = sockets[0];
-            try{
                 while(true){
+                    try{
                     Socket sc = serverSocket.accept();
+                    sc.setSoTimeout(2000);
                     /*https://stackoverflow.com/questions/28187038/tcp-client-server-program-datainputstream-dataoutputstream-issue*/
                     DataInputStream input = new DataInputStream(sc.getInputStream());
                     String recStr = input.readUTF();
@@ -204,22 +202,14 @@ public class GroupMessengerActivity extends Activity {
                     }
                     input.close();
                     sc.close();
-                }
-            }catch (SocketException e) {
-                Log.e(TAG, "ServerTask SocketTimeoutException");
-            } catch (IOException e) {
-                Log.e(TAG, "ServerTask IOException");
-            }catch (Exception e){
-                Log.e(TAG, "ServerTask Other Exception");
-            }
-            finally {
-                try {
-                    serverSocket.close();
+                }catch (SocketTimeoutException e) {
+                        Log.e(TAG, "ServerTask SocketTimeoutException");
                 } catch (IOException e) {
-                    e.printStackTrace();
+                        Log.e(TAG, "ServerTask IOException");
+                }catch (Exception e){
+                        Log.e(TAG, "ServerTask Other Exception");
                 }
             }
-            return null;
         }
 
 
